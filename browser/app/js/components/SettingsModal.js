@@ -29,8 +29,9 @@ class SettingsModal extends React.Component {
 
   // When the settings are shown, it loads the access key and secret key.
   componentWillMount() {
-    const {web, dispatch} = this.props
+    const {web, dispatch, currentBucket} = this.props
     const {serverInfo} = this.props
+    const bucket = currentBucket
 
     let accessKeyEnv = ''
     let secretKeyEnv = ''
@@ -42,7 +43,7 @@ class SettingsModal extends React.Component {
           keysReadOnly: true
       }))
     } else {
-      web.GetAuth()
+      web.GetAuth({bucket})
         .then(data => {
           dispatch(actions.setSettings({
             accessKey: data.accessKey,
@@ -89,13 +90,15 @@ class SettingsModal extends React.Component {
   // Save the auth params and set them.
   setAuth(e) {
     e.preventDefault()
-    const {web, dispatch} = this.props
+    const {web, dispatch, currentBucket} = this.props
+    const bucket = currentBucket;
 
     let accessKey = document.getElementById('accessKey').value
     let secretKey = document.getElementById('secretKey').value
     web.SetAuth({
       accessKey,
-      secretKey
+      secretKey,
+      bucket
     })
       .then(data => {
         dispatch(actions.setSettings({
@@ -147,12 +150,12 @@ class SettingsModal extends React.Component {
   }
 
   render() {
-    let {settings} = this.props
+    let {settings, currentBucket} = this.props
 
     return (
       <Modal bsSize="sm" animation={ false } show={ true }>
         <ModalHeader>
-          Change Password
+          Change Password { currentBucket ? "for " + currentBucket : "" }
         </ModalHeader>
         <ModalBody className="m-t-20">
           <InputGroup value={ settings.accessKey }
@@ -199,6 +202,7 @@ export default connect(state => {
   return {
     web: state.web,
     settings: state.settings,
-    serverInfo: state.serverInfo
+    serverInfo: state.serverInfo,
+    currentBucket: state.currentBucket,
   }
 })(SettingsModal)

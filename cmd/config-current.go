@@ -36,9 +36,9 @@ import (
 // 6. Make changes in config-current_test.go for any test change
 
 // Config version
-const serverConfigVersion = "22"
+const serverConfigVersion = "23"
 
-type serverConfig = serverConfigV22
+type serverConfig = serverConfigV23
 
 var (
 	// globalServerConfig server config.
@@ -71,7 +71,7 @@ func (s *serverConfig) GetRegion() string {
 	return s.Region
 }
 
-// SetCredential sets new credential and returns the previous credential.
+// SetCredential sets new credentials and returns the previous credentials.
 func (s *serverConfig) SetCredential(creds auth.Credentials) (prevCred auth.Credentials) {
 	s.Lock()
 	defer s.Unlock()
@@ -86,12 +86,49 @@ func (s *serverConfig) SetCredential(creds auth.Credentials) (prevCred auth.Cred
 	return prevCred
 }
 
-// GetCredentials get current credentials.
+// GetCredential gets the current credentials.
 func (s *serverConfig) GetCredential() auth.Credentials {
 	s.RLock()
 	defer s.RUnlock()
 
 	return s.Credential
+}
+
+// SetCredentialForBucket sets new credentials for a bucket and returns the previous credentials.
+func (s *serverConfig) SetCredentialForBucket(bucket string, creds auth.Credentials) (prevCred auth.Credentials) {
+	s.Lock()
+	defer s.Unlock()
+
+	if bucket == "" {
+		prevCred = s.Credential
+		s.Credential = creds
+		return prevCred
+	}
+
+	// Save previous credentials.
+	prevCred = s.Bucket[bucket]
+	if !prevCred.IsValid() {
+		prevCred = s.Credential
+	}
+
+	// Set updated credentials.
+	s.Bucket[bucket] = creds;
+
+	// Return previous credentials.
+	return prevCred
+}
+
+// GetCredentialForBucket get current credentials.
+func (s *serverConfig) GetCredentialForBucket(bucket string) auth.Credentials {
+	s.RLock()
+	defer s.RUnlock()
+
+	var cred auth.Credentials = s.Bucket[bucket]
+	if !cred.IsValid() {
+		cred = s.Credential
+	}
+
+	return cred
 }
 
 // SetBrowser set if browser is enabled.
@@ -184,7 +221,7 @@ func newServerConfig() *serverConfig {
 	srvCfg.Notify.Kafka["1"] = kafkaNotify{}
 	srvCfg.Notify.Webhook = make(map[string]webhookNotify)
 	srvCfg.Notify.Webhook["1"] = webhookNotify{}
-
+	srvCfg.Bucket = make(map[string]auth.Credentials)
 	return srvCfg
 }
 

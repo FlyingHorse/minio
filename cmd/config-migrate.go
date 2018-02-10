@@ -28,7 +28,7 @@ import (
 // DO NOT EDIT following message template, please open a github issue to discuss instead.
 var configMigrateMSGTemplate = "Configuration file %s migrated from version '%s' to '%s' successfully.\n"
 
-// Migrates all config versions from "1" to "18".
+// Migrates all config versions from "1" to the current version.
 func migrateConfig() error {
 	// Purge all configs with version '1',
 	// this is a special case since version '1' used
@@ -160,6 +160,11 @@ func migrateConfig() error {
 		fallthrough
 	case "21":
 		if err = migrateV21ToV22(); err != nil {
+			return err
+		}
+		fallthrough
+	case "22":
+		if err = migrateV22ToV23(); err != nil {
 			return err
 		}
 	case serverConfigVersion:
@@ -1805,5 +1810,115 @@ func migrateV21ToV22() error {
 	}
 
 	log.Printf(configMigrateMSGTemplate, configFile, cv21.Version, srvConfig.Version)
+	return nil
+}
+
+func migrateV22ToV23() error {
+	configFile := getConfigFile()
+
+	cv22 := &serverConfigV22{}
+	_, err := quick.Load(configFile, cv22)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("Unable to load config version ‘22’. %v", err)
+	}
+	if cv22.Version != "22" {
+		return nil
+	}
+
+	// Copy over fields from V22 into V23 config struct
+	srvConfig := &serverConfigV23{
+		Notify: &notifier{},
+	}
+	srvConfig.Version = serverConfigVersion
+	srvConfig.Credential = cv22.Credential
+	srvConfig.Region = cv22.Region
+	if srvConfig.Region == "" {
+		// Region needs to be set for AWS Signature Version 4.
+		srvConfig.Region = globalMinioDefaultRegion
+	}
+
+	// check and set notifiers config
+	if len(cv22.Notify.AMQP) == 0 {
+		srvConfig.Notify.AMQP = make(map[string]amqpNotify)
+		srvConfig.Notify.AMQP["1"] = amqpNotify{}
+	} else {
+		// New deliveryMode parameter is added for AMQP,
+		// default value is already 0, so nothing to
+		// explicitly migrate here.
+		srvConfig.Notify.AMQP = cv22.Notify.AMQP
+	}
+	if len(cv22.Notify.ElasticSearch) == 0 {
+		srvConfig.Notify.ElasticSearch = make(map[string]elasticSearchNotify)
+		srvConfig.Notify.ElasticSearch["1"] = elasticSearchNotify{
+			Format: formatNamespace,
+		}
+	} else {
+		srvConfig.Notify.ElasticSearch = cv22.Notify.ElasticSearch
+	}
+	if len(cv22.Notify.Redis) == 0 {
+		srvConfig.Notify.Redis = make(map[string]redisNotify)
+		srvConfig.Notify.Redis["1"] = redisNotify{
+			Format: formatNamespace,
+		}
+	} else {
+		srvConfig.Notify.Redis = cv22.Notify.Redis
+	}
+	if len(cv22.Notify.PostgreSQL) == 0 {
+		srvConfig.Notify.PostgreSQL = make(map[string]postgreSQLNotify)
+		srvConfig.Notify.PostgreSQL["1"] = postgreSQLNotify{
+			Format: formatNamespace,
+		}
+	} else {
+		srvConfig.Notify.PostgreSQL = cv22.Notify.PostgreSQL
+	}
+	if len(cv22.Notify.Kafka) == 0 {
+		srvConfig.Notify.Kafka = make(map[string]kafkaNotify)
+		srvConfig.Notify.Kafka["1"] = kafkaNotify{}
+	} else {
+		srvConfig.Notify.Kafka = cv22.Notify.Kafka
+	}
+	if len(cv22.Notify.NATS) == 0 {
+		srvConfig.Notify.NATS = make(map[string]natsNotify)
+		srvConfig.Notify.NATS["1"] = natsNotify{}
+	} else {
+		srvConfig.Notify.NATS = cv22.Notify.NATS
+	}
+	if len(cv22.Notify.Webhook) == 0 {
+		srvConfig.Notify.Webhook = make(map[string]webhookNotify)
+		srvConfig.Notify.Webhook["1"] = webhookNotify{}
+	} else {
+		srvConfig.Notify.Webhook = cv22.Notify.Webhook
+	}
+	if len(cv22.Notify.MySQL) == 0 {
+		srvConfig.Notify.MySQL = make(map[string]mySQLNotify)
+		srvConfig.Notify.MySQL["1"] = mySQLNotify{
+			Format: formatNamespace,
+		}
+	} else {
+		srvConfig.Notify.MySQL = cv22.Notify.MySQL
+	}
+	if len(cv22.Notify.MQTT) == 0 {
+		srvConfig.Notify.MQTT = make(map[string]mqttNotify)
+		srvConfig.Notify.MQTT["1"] = mqttNotify{}
+	} else {
+		srvConfig.Notify.MQTT = cv22.Notify.MQTT
+	}
+
+	// Load browser config from existing config in the file.
+	srvConfig.Browser = cv22.Browser
+
+	// Load domain config from existing config in the file.
+	srvConfig.Domain = cv22.Domain
+
+	// Load storage class config from existing config in the file.
+	srvConfig.StorageClass = cv22.StorageClass
+
+	if err = quick.Save(configFile, srvConfig); err != nil {
+		return fmt.Errorf("Failed to migrate config from ‘%s’ to ‘%s’. %v", cv22.Version, srvConfig.Version, err)
+	}
+
+	log.Printf(configMigrateMSGTemplate, configFile, cv22.Version, srvConfig.Version)
 	return nil
 }

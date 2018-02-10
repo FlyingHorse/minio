@@ -102,8 +102,8 @@ export default class Web {
   RemoveObject(args) {
     return this.makeCall('RemoveObject', args)
   }
-  GetAuth() {
-    return this.makeCall('GetAuth')
+  GetAuth(args) {
+    return this.makeCall('GetAuth', args)
   }
   GenerateAuth() {
     return this.makeCall('GenerateAuth')
@@ -111,7 +111,9 @@ export default class Web {
   SetAuth(args) {
     return this.makeCall('SetAuth', args)
       .then(res => {
-        storage.setItem('token', `${res.token}`)
+	if (`${res.token}`) {
+	        storage.setItem('token', `${res.token}`)
+	}
         return res
       })
   }
