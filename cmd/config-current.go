@@ -44,6 +44,8 @@ var (
 	// globalServerConfig server config.
 	globalServerConfig   *serverConfig
 	globalServerConfigMu sync.RWMutex
+	// Cache of mappings from accessKey to credentials.
+	globalServerCredCache map[string]auth.Credentials
 )
 
 // GetVersion get current config version.
@@ -107,12 +109,18 @@ func (s *serverConfig) SetCredentialForBucket(bucket string, creds auth.Credenti
 
 	// Save previous credentials.
 	prevCred = s.Bucket[bucket]
-	if !prevCred.IsValid() {
+
+	// If the credentials were valid, remove them from the cache.
+	if prevCred.IsValid() {
+		delete(globalServerCredCache, prevCred.AccessKey)
+
+	} else {
 		prevCred = s.Credential
 	}
 
-	// Set updated credentials.
+	// Set updated credentials officially and in the cache.
 	s.Bucket[bucket] = creds;
+	globalServerCredCache[creds.AccessKey] = creds
 
 	// Return previous credentials.
 	return prevCred
@@ -129,6 +137,54 @@ func (s *serverConfig) GetCredentialForBucket(bucket string) auth.Credentials {
 	}
 
 	return cred
+}
+
+// GetBucketForKey returns the bucket name corresponding to a given access key,
+// or the empty string if not found.
+func (s *serverConfig) GetBucketForKey(key string) string {
+	s.RLock()
+	defer s.RUnlock()
+
+	// Don't bother iterating if it's the master key.
+	if key == s.Credential.AccessKey {
+		return ""
+	}
+
+	// Go hunting for the bucket.
+	for bucket, creds := range s.Bucket {
+		if creds.AccessKey == key {
+			return bucket
+		}
+	}
+
+	return ""
+}
+
+// Attempt to find credentials for a given access key.
+func (s *serverConfig) GetCredentialForKey(key string) auth.Credentials {
+	s.RLock()
+	defer s.RUnlock()
+
+	var cred auth.Credentials = s.Credential
+	if cred.AccessKey == key {
+		return cred
+	}
+
+	// Try the cache for fast access.
+	cred = globalServerCredCache[key]
+	if cred.IsValid() && cred.AccessKey == key {
+		return cred
+	}
+
+	// Go the slow way, looping through all the buckets.
+	for _, cred = range s.Bucket {
+		if cred.AccessKey == key {
+			globalServerCredCache[cred.AccessKey] = cred
+			return cred
+		}
+	}
+
+	return auth.Credentials{}
 }
 
 // SetBrowser set if browser is enabled.
@@ -257,6 +313,7 @@ func newConfig() error {
 	// unlock the mutex.
 	globalServerConfigMu.Lock()
 	globalServerConfig = srvCfg
+	globalServerCredCache = make(map[string]auth.Credentials)
 	globalServerConfigMu.Unlock()
 
 	// Save config into file.
@@ -386,6 +443,7 @@ func loadConfig() error {
 
 	// hold the mutex lock before a new config is assigned.
 	globalServerConfigMu.Lock()
+	globalServerCredCache = make(map[string]auth.Credentials)
 	globalServerConfig = srvCfg
 	if !globalIsEnvCreds {
 		globalActiveCred = globalServerConfig.GetCredential()
