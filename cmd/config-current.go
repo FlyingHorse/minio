@@ -187,6 +187,20 @@ func (s *serverConfig) GetCredentialForKey(key string) auth.Credentials {
 	return auth.Credentials{}
 }
 
+// Delete the credentials for a bucket. Used when a bucket is deleted.
+func (s *serverConfig) DeleteCredentialsForBucket(bucket string) {
+	s.RLock()
+	defer s.RUnlock()
+
+	// Remove from the cache.
+	var cred auth.Credentials = s.Bucket[bucket]
+        if cred.IsValid() {
+		delete(globalServerCredCache, cred.AccessKey)
+	}
+
+	delete(s.Bucket, bucket)
+}
+
 // SetBrowser set if browser is enabled.
 func (s *serverConfig) SetBrowser(b bool) {
 	s.Lock()

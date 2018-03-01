@@ -673,6 +673,9 @@ func (api objectAPIHandlers) DeleteBucketHandler(w http.ResponseWriter, r *http.
 	// Delete bucket access policy, if present - ignore any errors.
 	_ = removeBucketPolicy(bucket, objectAPI)
 
+	// Delete bucket credentials.
+	globalServerConfig.DeleteCredentialsForBucket(bucket)
+
 	// Notify all peers (including self) to update in-memory state
 	S3PeersUpdateBucketPolicy(bucket, policyChange{true, policy.BucketAccessPolicy{}})
 
