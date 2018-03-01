@@ -160,9 +160,6 @@ func compareSignatureV4(sig1, sig2 string) bool {
 //     - http://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-HTTPPOSTConstructPolicy.html
 // returns ErrNone if the signature matches.
 func doesPolicySignatureV4Match(formValues http.Header) APIErrorCode {
-	// Access credentials.
-	cred := globalServerConfig.GetCredential()
-
 	// Server region.
 	region := globalServerConfig.GetRegion()
 
@@ -172,9 +169,16 @@ func doesPolicySignatureV4Match(formValues http.Header) APIErrorCode {
 		return ErrMissingFields
 	}
 
-	// Verify if the access key id matches.
-	if credHeader.accessKey != cred.AccessKey {
-		return ErrInvalidAccessKeyID
+	// Get the master credentials
+	cred := globalServerConfig.GetCredential()
+
+	// If this key is not the master key, see if it's the bucket key.
+	if cred.AccessKey != credHeader.accessKey {
+		// If the key is not the master key, it had better be the bucket key.
+		cred := globalServerConfig.GetCredentialForBucket(formValues.Get("Bucket"))
+		if !cred.IsValid() || cred.AccessKey != credHeader.accessKey {
+			return ErrInvalidAccessKeyID
+		}
 	}
 
 	// Verify if the region is valid.
@@ -201,9 +205,7 @@ func doesPolicySignatureV4Match(formValues http.Header) APIErrorCode {
 // doesPresignedSignatureMatch - Verify query headers with presigned signature
 //     - http://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
 // returns ErrNone if the signature matches.
-func doesPresignedSignatureMatch(hashedPayload string, r *http.Request, region string) APIErrorCode {
-	// Access credentials.
-	cred := globalServerConfig.GetCredential()
+func doesPresignedSignatureMatch(hashedPayload string, r *http.Request, region string, bucket string) APIErrorCode {
 
 	// Copy request
 	req := *r
@@ -214,9 +216,15 @@ func doesPresignedSignatureMatch(hashedPayload string, r *http.Request, region s
 		return err
 	}
 
-	// Verify if the access key id matches.
+	// Access credentials.
+	cred := globalServerConfig.GetCredential()
+
+	// Verify if the access key id matches either the master key or the bucket key.
 	if pSignValues.Credential.accessKey != cred.AccessKey {
-		return ErrInvalidAccessKeyID
+		cred = globalServerConfig.GetCredentialForBucket(bucket)
+		if !cred.IsValid() || pSignValues.Credential.accessKey != cred.AccessKey {
+			return ErrInvalidAccessKeyID
+		}
 	}
 
 	// Verify if region is valid.
@@ -320,9 +328,7 @@ func doesPresignedSignatureMatch(hashedPayload string, r *http.Request, region s
 // doesSignatureMatch - Verify authorization header with calculated header in accordance with
 //     - http://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html
 // returns ErrNone if signature matches.
-func doesSignatureMatch(hashedPayload string, r *http.Request, region string) APIErrorCode {
-	// Access credentials.
-	cred := globalServerConfig.GetCredential()
+func doesSignatureMatch(hashedPayload string, r *http.Request, region string, bucket string) APIErrorCode {
 
 	// Copy request.
 	req := *r
@@ -342,9 +348,15 @@ func doesSignatureMatch(hashedPayload string, r *http.Request, region string) AP
 		return errCode
 	}
 
-	// Verify if the access key id matches.
+	// Access credentials.
+	cred := globalServerConfig.GetCredential()
+
+	// Verify if the access key id matches either the master key or the bucket key.
 	if signV4Values.Credential.accessKey != cred.AccessKey {
-		return ErrInvalidAccessKeyID
+		cred = globalServerConfig.GetCredentialForBucket(bucket)
+		if !cred.IsValid() || signV4Values.Credential.accessKey != cred.AccessKey {
+			return ErrInvalidAccessKeyID
+		}
 	}
 
 	// Verify if region is valid.

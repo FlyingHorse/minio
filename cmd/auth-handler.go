@@ -107,7 +107,8 @@ func getRequestAuthType(r *http.Request) authType {
 func checkAdminRequestAuthType(r *http.Request, region string) APIErrorCode {
 	s3Err := ErrAccessDenied
 	if getRequestAuthType(r) == authTypeSigned { // we only support V4 (no presign)
-		s3Err = isReqAuthenticated(r, region)
+		// The empty string means only the master key is supported, no bucket keys allowed.
+		s3Err = isReqAuthenticated(r, region, "")
 	}
 	if s3Err != ErrNone {
 		errorIf(errors.New(getAPIError(s3Err).Description), "%s", dumpRequest(r))
@@ -121,13 +122,13 @@ func checkRequestAuthType(r *http.Request, bucket, policyAction, region string) 
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 		}
 		return s3Error
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, region)
+		s3Error := isReqAuthenticated(r, region, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 		}
@@ -150,31 +151,31 @@ func checkRequestAuthType(r *http.Request, bucket, policyAction, region string) 
 }
 
 // Verify if request has valid AWS Signature Version '2'.
-func isReqAuthenticatedV2(r *http.Request) (s3Error APIErrorCode) {
+func isReqAuthenticatedV2(r *http.Request, bucket string) (s3Error APIErrorCode) {
 	if isRequestSignatureV2(r) {
-		return doesSignV2Match(r)
+		return doesSignV2Match(r, bucket)
 	}
-	return doesPresignV2SignatureMatch(r)
+	return doesPresignV2SignatureMatch(r, bucket)
 }
 
-func reqSignatureV4Verify(r *http.Request, region string) (s3Error APIErrorCode) {
+func reqSignatureV4Verify(r *http.Request, region string, bucket string) (s3Error APIErrorCode) {
 	sha256sum := getContentSha256Cksum(r)
 	switch {
 	case isRequestSignatureV4(r):
-		return doesSignatureMatch(sha256sum, r, region)
+		return doesSignatureMatch(sha256sum, r, region, bucket)
 	case isRequestPresignedSignatureV4(r):
-		return doesPresignedSignatureMatch(sha256sum, r, region)
+		return doesPresignedSignatureMatch(sha256sum, r, region, bucket)
 	default:
 		return ErrAccessDenied
 	}
 }
 
 // Verify if request has valid AWS Signature Version '4'.
-func isReqAuthenticated(r *http.Request, region string) (s3Error APIErrorCode) {
+func isReqAuthenticated(r *http.Request, region string, bucket string) (s3Error APIErrorCode) {
 	if r == nil {
 		return ErrInternalError
 	}
-	if errCode := reqSignatureV4Verify(r, region); errCode != ErrNone {
+	if errCode := reqSignatureV4Verify(r, region, bucket); errCode != ErrNone {
 		return errCode
 	}
 	payload, err := ioutil.ReadAll(r.Body)

@@ -54,14 +54,14 @@ func (api gatewayAPIHandlers) GetObjectHandler(w http.ResponseWriter, r *http.Re
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion())
+		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion(), bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
@@ -275,14 +275,14 @@ func (api gatewayAPIHandlers) PutObjectHandler(w http.ResponseWriter, r *http.Re
 			return
 		}
 	case authTypeSignedV2, authTypePresignedV2:
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypePresigned, authTypeSigned:
-		if s3Error := reqSignatureV4Verify(r, globalServerConfig.GetRegion()); s3Error != ErrNone {
+		if s3Error := reqSignatureV4Verify(r, globalServerConfig.GetRegion(), bucket); s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
@@ -346,14 +346,14 @@ func (api gatewayAPIHandlers) HeadObjectHandler(w http.ResponseWriter, r *http.R
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion())
+		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion(), bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
@@ -671,14 +671,14 @@ func (api gatewayAPIHandlers) ListObjectsV1Handler(w http.ResponseWriter, r *htt
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion())
+		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion(), bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
@@ -744,14 +744,14 @@ func (api gatewayAPIHandlers) ListObjectsV2Handler(w http.ResponseWriter, r *htt
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion())
+		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion(), bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
@@ -822,14 +822,14 @@ func (api gatewayAPIHandlers) HeadBucketHandler(w http.ResponseWriter, r *http.R
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion())
+		s3Error := isReqAuthenticated(r, globalServerConfig.GetRegion(), bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
@@ -873,17 +873,17 @@ func (api gatewayAPIHandlers) GetBucketLocationHandler(w http.ResponseWriter, r 
 	switch reqAuthType {
 	case authTypePresignedV2, authTypeSignedV2:
 		// Signature V2 validation.
-		s3Error := isReqAuthenticatedV2(r)
+		s3Error := isReqAuthenticatedV2(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)
 			return
 		}
 	case authTypeSigned, authTypePresigned:
-		s3Error := isReqAuthenticated(r, globalMinioDefaultRegion)
+		s3Error := isReqAuthenticated(r, globalMinioDefaultRegion, bucket)
 		if s3Error == ErrInvalidRegion {
 			// Clients like boto3 send getBucketLocation() call signed with region that is configured.
-			s3Error = isReqAuthenticated(r, globalServerConfig.GetRegion())
+			s3Error = isReqAuthenticated(r, globalServerConfig.GetRegion(), bucket)
 		}
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
