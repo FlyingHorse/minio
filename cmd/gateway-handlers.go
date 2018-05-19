@@ -268,7 +268,7 @@ func (api gatewayAPIHandlers) PutObjectHandler(w http.ResponseWriter, r *http.Re
 	case authTypeStreamingSigned:
 		// Initialize stream signature verifier.
 		var s3Error APIErrorCode
-		reader, s3Error = newSignV4ChunkedReader(r)
+		reader, s3Error = newSignV4ChunkedReader(r, bucket)
 		if s3Error != ErrNone {
 			errorIf(errSignatureMismatch, "%s", dumpRequest(r))
 			writeErrorResponse(w, s3Error, r.URL)

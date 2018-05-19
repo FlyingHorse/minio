@@ -175,7 +175,7 @@ func doesPolicySignatureV4Match(formValues http.Header) APIErrorCode {
 	// If this key is not the master key, see if it's the bucket key.
 	if cred.AccessKey != credHeader.accessKey {
 		// If the key is not the master key, it had better be the bucket key.
-		cred := globalServerConfig.GetCredentialForBucket(formValues.Get("Bucket"))
+		cred = globalServerConfig.GetCredentialForBucket(formValues.Get("Bucket"))
 		if !cred.IsValid() || cred.AccessKey != credHeader.accessKey {
 			return ErrInvalidAccessKeyID
 		}
